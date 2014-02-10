@@ -1,0 +1,55 @@
+#!/bin/zsh
+
+#########################################################################
+# Copyright (C) 2012-2014  Wojciech Siewierski                          #
+#                                                                       #
+# This program is free software: you can redistribute it and/or modify  #
+# it under the terms of the GNU General Public License as published by  #
+# the Free Software Foundation, either version 3 of the License, or     #
+# (at your option) any later version.                                   #
+#                                                                       #
+# This program is distributed in the hope that it will be useful,       #
+# but WITHOUT ANY WARRANTY; without even the implied warranty of        #
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+# GNU General Public License for more details.                          #
+#                                                                       #
+# You should have received a copy of the GNU General Public License     #
+# along with this program.  If not, see <http://www.gnu.org/licenses/>. #
+#########################################################################
+
+PS1='%{\e[31m%}%n%{\e[0m%}@%{\e[32m%}%m%{\e[0m%}:%{\e[1;34m%}%~%{\e[0m%}%# '
+LOCALPS1='%{\e[1;31m%}[readonly]%{\e[0m%} '
+REMOTEPS1='%{\e[1;33m%}[netcat]%{\e[0m%} '
+
+setopt multios
+
+if [ "$#" -lt 2 ]; then
+    <<EOF
+usage: $0 HOST PORT
+EOF
+    exit 1
+fi
+
+finish()
+{
+    rm -f $PIPE
+    exit
+}
+trap finish EXIT INT TERM
+
+PIPE="`mktemp --dry-run -t passivessh.XXXXXX --tmpdir=/tmp`"
+if [ ! -p $PIPE ]; then
+    mkfifo $PIPE
+fi
+
+alias ls='ls --color'
+
+print -nP $LOCALPS1$PS1       # print the local prompt
+print -nP $REMOTEPS1$PS1 |    # print the remote prompt
+nc $1 $2 <> $PIPE |           # write to and read from the netcat pipe
+while read -r; do                # get a remote line
+    print -R $REPLY              # print it locally
+    eval $REPLY 1>&1 1>$PIPE 2>&1 # evaluate it locally and print output both remotely and locally
+    print -nP $LOCALPS1$PS1  # print the local prompt
+    print -nP $REMOTEPS1$PS1 > $PIPE # print the remote prompt
+done
